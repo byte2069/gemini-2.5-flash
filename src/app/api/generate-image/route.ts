@@ -3,9 +3,23 @@ import { VertexAI } from "@google-cloud/vertexai";
 
 export const runtime = "nodejs";
 
+function getCredentials() {
+  try {
+    return JSON.parse(process.env.GCLOUD_KEY_JSON || "{}");
+  } catch {
+    return {};
+  }
+}
+
+const creds = getCredentials();
+
 const vertexAI = new VertexAI({
   project: process.env.GCLOUD_PROJECT!,
   location: process.env.GCLOUD_LOCATION || "us-central1",
+  credentials: {
+    client_email: creds.client_email,
+    private_key: creds.private_key,
+  },
 });
 
 const model = vertexAI.getGenerativeModel({
@@ -17,33 +31,23 @@ export async function POST(req: NextRequest) {
     const { prompt } = await req.json();
 
     const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "image/png",
+      },
     });
 
-    // Imagen 3 trả về predictions
     const base64Image =
-      (result as any).response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data ||
-      (result as any).predictions?.[0]?.bytesBase64Encoded;
-
-    if (!base64Image) {
-      return new Response(
-        JSON.stringify({ error: "Không có ảnh trả về từ Imagen" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
+      result.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
     return new Response(
       JSON.stringify({ image: `data:image/png;base64,${base64Image}` }),
       { headers: { "Content-Type": "application/json" } }
     );
   } catch (err: any) {
+    console.error("Imagen API error:", err);
     return new Response(
-      JSON.stringify({ error: true, message: err.message }),
+      JSON.stringify({ error: err.message || "Unknown error" }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
