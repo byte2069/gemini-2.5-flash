@@ -3,6 +3,7 @@ import { VertexAI } from "@google-cloud/vertexai";
 
 export const runtime = "nodejs";
 
+// Parse service account JSON từ env
 function getCredentials() {
   try {
     return JSON.parse(process.env.GCLOUD_KEY_JSON || "{}");
@@ -13,13 +14,18 @@ function getCredentials() {
 
 const creds = getCredentials();
 
+// ⚡ VertexAI sẽ tự đọc từ GOOGLE_APPLICATION_CREDENTIALS env
+process.env.GOOGLE_APPLICATION_CREDENTIALS = "/tmp/gcloud-key.json";
+
+// ghi file key tạm (chỉ khi chạy runtime nodejs)
+import fs from "fs";
+if (creds.private_key && creds.client_email) {
+  fs.writeFileSync("/tmp/gcloud-key.json", JSON.stringify(creds));
+}
+
 const vertexAI = new VertexAI({
   project: process.env.GCLOUD_PROJECT!,
   location: process.env.GCLOUD_LOCATION || "us-central1",
-  credentials: {
-    client_email: creds.client_email,
-    private_key: creds.private_key,
-  },
 });
 
 const model = vertexAI.getGenerativeModel({
@@ -32,9 +38,7 @@ export async function POST(req: NextRequest) {
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "image/png",
-      },
+      generationConfig: { responseMimeType: "image/png" },
     });
 
     const base64Image =
