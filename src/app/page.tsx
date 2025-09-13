@@ -26,10 +26,9 @@ export default function Home() {
       const data = await res.json()
 
       if (res.ok) {
-        // Imagen trả về ảnh base64
-        const base64 = data.images?.[0]?.b64Json
-        if (base64) {
-          setImageUrl(`data:image/png;base64,${base64}`)
+        const image = data.image
+        if (image) {
+          setImageUrl(image) // đã kèm sẵn prefix data:image/png;base64,
         } else {
           setError('Không nhận được ảnh từ API')
         }
