@@ -5,17 +5,17 @@ export const runtime = "nodejs";
 
 const vertexAI = new VertexAI({
   project: process.env.GCLOUD_PROJECT!,
-  location: "us-central1",
+  location: process.env.GCLOUD_LOCATION || "us-central1",
 });
 
 const model = vertexAI.getGenerativeModel({
-  model: "imagen-3.0-fast", // hoặc "imagen-3.0-generate"
+  model: "imagen-3.0-fast",
 });
 
 export async function POST(req: NextRequest) {
-  const { prompt } = await req.json();
-
   try {
+    const { prompt } = await req.json();
+
     const result = await model.generateContent({
       contents: [
         {
@@ -23,13 +23,19 @@ export async function POST(req: NextRequest) {
           parts: [{ text: prompt }],
         },
       ],
-      generationConfig: {
-        responseMimeType: "image/png", // 🔑 để nhận ảnh
-      },
     });
 
-    // Lấy dữ liệu ảnh base64 từ response
-    const base64Image = result.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    // Imagen 3 trả về predictions
+    const base64Image =
+      (result as any).response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data ||
+      (result as any).predictions?.[0]?.bytesBase64Encoded;
+
+    if (!base64Image) {
+      return new Response(
+        JSON.stringify({ error: "Không có ảnh trả về từ Imagen" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
       JSON.stringify({ image: `data:image/png;base64,${base64Image}` }),
@@ -37,7 +43,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: err.message }),
+      JSON.stringify({ error: true, message: err.message }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
